@@ -123,8 +123,8 @@ for (folder in folders) {
     seurat_obj_tralo_3$EPCAM_level <- ifelse(seurat_obj_tralo_3$EPCAM > 10**3.1, "EPCAM+", "EPCAM-")
     seurat_obj_tralo_4$EPCAM_level <- ifelse(seurat_obj_tralo_4$EPCAM > 10**3.1, "EPCAM+", "EPCAM-")
     
-    seurat_obj_tralo_3 <- subset(seurat_obj_tralo_3, subset = percent.spike < 15 & nCount_RNA > 1000 & nFeature_RNA < 5000 )
-    seurat_obj_tralo_4 <- subset(seurat_obj_tralo_4, subset = percent.spike < 15 & nCount_RNA > 1000 & nFeature_RNA < 5000 )
+    # seurat_obj_tralo_3 <- subset(seurat_obj_tralo_3, subset = percent.spike < 15 & nCount_RNA > 1000 & nFeature_RNA < 5000 )
+    # seurat_obj_tralo_4 <- subset(seurat_obj_tralo_4, subset = percent.spike < 15 & nCount_RNA > 1000 & nFeature_RNA < 5000 )
     
     seurat_list[[paste0(basename(folder), "_tralo_3")]] <- seurat_obj_tralo_3
     seurat_list[[paste0(basename(folder), "_tralo_4")]] <- seurat_obj_tralo_4
@@ -191,10 +191,12 @@ for (folder in folders) {
       
     }
     # Filter low quality cells
-    seurat_obj <- subset(seurat_obj, subset = percent.spike < 15 & nCount_RNA > 1000 & nFeature_RNA < 5000 )
+    # seurat_obj <- subset(seurat_obj, subset = percent.spike < 15 & nCount_RNA > 1000 & nFeature_RNA < 5000 )
     seurat_list[[basename(folder)]] <- seurat_obj
   }
 }
+
+
 
 # seurat_list_sct <- lapply(seurat_list, function(seurat_obj) {
 #   SCTransform(
@@ -212,6 +214,24 @@ for (folder in folders) {
 # Merge individual objects into one combined Seurat object
 combined_seurat_merged <- merge(seurat_list[[1]], y = seurat_list[2:length(seurat_list)])
 
+png("./final_figures/vln_plots.png")
+QC_plot <- VlnPlot(combined_seurat_sct, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.spike"), ncol = 3)
+dev.off()
+
+png("./final_figures/scttr_plots.png")
+FeatureScatter(combined_seurat_sct, "nCount_RNA", "nFeature_RNA")
+dev.off()
+
+combined_seurat_sct <- subset(combined_seurat_sct, subset = percent.spike < 15 & nCount_RNA > 1000 & nFeature_RNA < 5000 )
+
+png("./final_figures/vln_plots_flt.png")
+QC_plot <- VlnPlot(combined_seurat_sct, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.spike"), ncol = 3)
+dev.off()
+
+png("./final_figures/scttr_plots_flt.png")
+FeatureScatter(combined_seurat_sct, "nCount_RNA", "nFeature_RNA")
+dev.off()
+
 combined_seurat_sct <-   SCTransform(
   combined_seurat_merged,
   method = "glmGamPoi",
@@ -223,10 +243,6 @@ combined_seurat_sct <-   SCTransform(
   vst.flavor="v2"
 )
 
-png("./final_figures/vln_plots.png")
-QC_plot <- VlnPlot(combined_seurat_sct, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.spike"), ncol = 3)
-dev.off()
-# FeatureScatter(combined_seurat_sct, "nCount_RNA", "nFeature_RNA")
 
 combined_seurat_sct <- append_meta_data(combined_seurat_sct, metadata)
 combined_seurat_sct <- FindVariableFeatures(combined_seurat_sct)

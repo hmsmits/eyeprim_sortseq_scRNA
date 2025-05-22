@@ -13,6 +13,7 @@ library(tidyverse)
 library(clusterProfiler)
 library(org.Hs.eg.db)  # Annotation database for human genes
 library(enrichplot)  # For visualization
+library(openxlsx)
 
 perform_GSEA <- function(celltype_list){
   GSEA_res <- list()
@@ -88,7 +89,7 @@ source("/Users/hsmits7/surfdrive/CTI/eyeprim/scripts/plot_3d_cells.R")
 path <- "/Users/hsmits7/surfdrive/CTI/eyeprim/"
 setwd(path)
 
-seurat_obj <- readRDS("/Users/hsmits7/surfdrive/CTI/eyeprim/final_data/filtered_seurat_obj_sct.rds")
+seurat_obj <- readRDS("/Users/hsmits7/surfdrive/CTI/eyeprim/eyeprim_sortseq_scRNA/final_data/filtered_seurat_obj_sct.rds")
 
 cluster_counts <- table(
   Cluster = seurat_obj$celltype,
@@ -132,15 +133,15 @@ celltype_absolute <- ggplot(cluster_df, aes(x = Timepoint, y = Freq, fill = Trea
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) + ggsci::scale_fill_d3()
 
-png("./final_figures/cellproportions_total.png")
+png("./eyeprim_sortseq_scRNA/final_figures/cellproportions_total.png")
 total_percentages
 dev.off()
 
-png("./final_figures/cell_absolute_total.png")
+png("./eyeprim_sortseq_scRNA/final_figures/cell_absolute_total.png")
 total_absolute
 dev.off()
 
-png("./final_figures/celltype_absolute_total.png")
+png("./eyeprim_sortseq_scRNA/final_figures/celltype_absolute_total.png")
 celltype_absolute
 dev.off()
 
@@ -182,7 +183,7 @@ for (treatment in treatments) {
     scale_x_discrete(labels = c("BL" = "Baseline", "4W" = "4 Weeks"))
   
   # Save Percentage Plot
-  ggsave(filename = paste0("./final_figures/", treatment, "_percentage.png"),
+  ggsave(filename = paste0("./eyeprim_sortseq_scRNA/final_figures/", treatment, "_percentage.png"),
          plot = p_percentage, 
          width = 10, height = 6, dpi = 300)
   
@@ -200,7 +201,7 @@ for (treatment in treatments) {
     scale_x_discrete(labels = c("BL" = "Baseline", "4W" = "4 Weeks"))
   
   # Save Absolute Plot
-  ggsave(filename = paste0("./final_figures/", treatment, "_absolute.png"),
+  ggsave(filename = paste0("./eyeprim_sortseq_scRNA/final_figures/", treatment, "_absolute.png"),
          plot = p_absolute, 
          width = 10, height = 6, dpi = 300)
 }
@@ -209,12 +210,16 @@ DE_markers <- list()
 
 for(treatment in treatments){
   if(treatment == "Pso"){
-    seurat_subs <- subset(seurat_obj, timepoint %in%c("Pso", "BL"))
+    low_counts_patients <- c("control 1") # has low counts
+    seurat_subs <- subset(seurat_obj, timepoint %in%c("Pso", "BL") & !PatientID%in% low_counts_patients)
     paired <- F
   }else{
-    seurat_subs <- subset(seurat_obj, Treament == treatment)
+    low_counts_patients <- c("dupi 3", "tralo 10") # both follow up patients have low counts
+    seurat_subs <- subset(seurat_obj, Treament == treatment & !PatientID%in% low_counts_patients)
     paired <- T
   }
+  patients <- unique(seurat_subs$PatientID)
+  message("running pseudo Edger LRT with the following samples: ", paste0(patients, collapse = ", "))
   DE_markers_sublist <- list()
   for(cluster in unique(seurat_subs$celltype)){
     try(DE_markers_sublist <- perform_EdgeR_LRT(seurat_subs, cluster = cluster, DE_list = DE_markers_sublist, paired = paired))
@@ -238,12 +243,29 @@ for(treatment in treatments){
     geom_point() + theme_bw() + ggrepel::geom_label_repel(max.overlaps = 5) + 
     ggtitle(title) + facet_wrap(~cell_type, scales = "free")
   
-  ggsave(filename = paste0("./final_figures/", file),
+  ggsave(filename = paste0("./eyeprim_sortseq_scRNA/final_figures/", file),
          plot = volcano, 
          width = 10, height = 6, dpi = 300)
 }
 
-saveRDS(DE_markers, "./final_results/DE_markers.rds")
+saveRDS(DE_markers, "./eyeprim_sortseq_scRNA/final_results/DE_markers.rds")
+
+for(treatment in treatments){
+  DE_markers_trt <- DE_markers[[treatment]] 
+  wb <- createWorkbook()
+  
+  file <- paste0("./eyeprim_sortseq_scRNA/final_results/", treatment, "_DE_genes_EdgeR_LRT.xlsx")
+  
+  # Add each data frame to a separate sheet
+  for (celltype in names(DE_markers_trt)) {
+    addWorksheet(wb, celltype)
+    writeData(wb, celltype, DE_markers_trt[[celltype]])
+  }
+  
+  # Save the workbook
+  saveWorkbook(wb, file, overwrite = TRUE)
+}
+
 
 GSEA_list <- list()
 
@@ -268,13 +290,13 @@ for(treatment in treatments){
     GSEA_celltype <- GSEA_trt[[celltype]]
     if(length(GSEA_celltype$GO$Description) > 0){
       dtplt_GO <- dotplot(GSEA_celltype$GO) + ggtitle(paste0(celltype, ": ", title_GO))
-      ggsave(filename = paste0("./final_figures/", paste0(celltype, "_",file_GO)),
+      ggsave(filename = paste0("./eyeprim_sortseq_scRNA/final_figures/", paste0(celltype, "_",file_GO)),
              plot = dtplt_GO, 
              width = 6, height = 10, dpi = 300)
     }
     if(length(GSEA_celltype$KEGG$Description) > 0){
       dtplt_KEGG <- dotplot(GSEA_celltype$KEGG) + ggtitle(paste0(celltype, ": ", title_KEGG))
-      ggsave(filename = paste0("./final_figures/", paste0(celltype, "_",file_KEGG)),
+      ggsave(filename = paste0("./eyeprim_sortseq_scRNA/final_figures/", paste0(celltype, "_",file_KEGG)),
              plot = dtplt_KEGG, 
              width = 6, height = 10, dpi = 300)
       
@@ -282,3 +304,23 @@ for(treatment in treatments){
   }
 }
 
+
+# seurat_obj$patient_timepoint <- paste(seurat_obj$PatientID, seurat_obj$timepoint, sep = "_")
+# 
+# library(patchwork)
+# 
+# plots <- FeaturePlot(
+#   subset(seurat_obj, celltype == "basal cells" & Treament == "Tralo"),
+#   features = "KRT14",
+#   split.by = "patient_timepoint", cols = 2, combine = F
+# ) + patchwork::plot_layout(ncol = 2)
+# 
+# RidgePlot(subset(seurat_obj, celltype == "basal cells" & Treament == "Tralo" & KRT14 > 0), features = "KRT14", ncol = 2)
+# RidgePlot(subset(seurat_obj, celltype %in% c("basal cells" & KRT14 > 0), features = "KRT14", ncol = 2)
+# 
+# # Set identities to that
+# Idents(seurat_obj) <- "patient_timepoint"
+# 
+# # Plot
+# VlnPlot(seurat_obj, features = "KRT14")
+# FeaturePlot(subset(seurat_obj, celltype == "basal cells" & Treament == "Tralo"), "KRT14", split.by = "timepoint")

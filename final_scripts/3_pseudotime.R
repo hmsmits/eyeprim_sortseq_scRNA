@@ -64,7 +64,7 @@ AQPs <- plotgenes[grepl("AQP", plotgenes)]
 S100 <- plotgenes[grepl("S100", plotgenes)]
 
 png("./final_figures/top20_pseudogenes.png", height = 3000, width = 3000, res = 300)
-FeaturePlot(seurat_obj, plotgenes[1:20])
+FeaturePlot(seurat_obj, plotgenes[21:40])
 dev.off()
 
 png("./final_figures/anti_microbial_genes.png", height = 3000, width = 3000, res = 300)
